@@ -3,6 +3,13 @@
 - Default branch: `dev` (local `main` may not exist)
 - Prefer automation: execute actions without confirmation unless blocked by safety/irreversibility
 
+## Constraints
+
+- **No simplification escapes**: Do not simplify problems or avoid complexity when a full solution is required
+- **No hardcoding**: Never hardcode values, paths, or configurations that should be dynamic or configurable
+- **No comment-only implementations**: Do not write TODO comments or placeholders instead of actual implementation
+- **No `any` type**: Never use `any`; use precise types, type guards, or proper type inference
+
 ## Build/Lint/Test Commands
 
 ### Root Level
@@ -44,7 +51,6 @@
 
 - Keep logic in one function unless composable or reusable
 - Avoid `try`/`catch` where possible; prefer `.catch(...)`
-- Avoid using the `any` type; use precise types
 - Prefer single word variable names where possible
 - Use Bun APIs when possible, like `Bun.file()`
 - Rely on type inference; avoid explicit type annotations unless necessary for exports or clarity
