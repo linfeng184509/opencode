@@ -18,10 +18,13 @@ ts-dist
 refs
 Session.vim
 opencode.json
+opencode.exe
 a.out
 target
 .scripts
 .direnv/
+
+bun.lock
 
 # Local dev files
 opencode-dev
