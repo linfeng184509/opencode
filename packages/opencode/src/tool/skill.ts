@@ -12,7 +12,8 @@ const parameters = z.object({
 
 export const SkillTool = Tool.define("skill", async () => {
   return {
-    description: "Load a specialized skill that provides domain-specific instructions and workflows.",
+    description:
+      "Load a skill by name. Call this AFTER the user has confirmed they want to use the skill (via skill-suggest tool). Use one call per skill.",
     parameters,
     async execute(params: z.infer<typeof parameters>, ctx) {
       const skill = await Skill.get(params.name)

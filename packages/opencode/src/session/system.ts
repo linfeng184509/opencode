@@ -57,7 +57,6 @@ export namespace SystemPrompt {
   export async function skills(agent?: { name: string; permission: any }) {
     const allSkills = await Skill.all()
 
-    // Filter skills by agent permissions (same logic as skill.ts)
     const accessibleSkills = agent
       ? allSkills.filter((skill) => {
           const rule = PermissionNext.evaluate("skill", skill.name, agent.permission)
@@ -69,9 +68,26 @@ export namespace SystemPrompt {
 
     return [
       `<available_skills>`,
-      `The following skills are available. Call the 'skill' tool to load a skill before starting work:`,
+      `The following skills are available:`,
       ``,
       ...accessibleSkills.map((s) => `- ${s.name}: ${s.description}`),
+      ``,
+      `## How to use skills - CRITICAL INSTRUCTIONS`,
+      ``,
+      `At the START of EVERY task, you MUST:`,
+      `1. Review the available skills list above`,
+      `2. Identify if any skill matches the user's request`,
+      `3. If a match exists, use the 'skill-suggest' tool to recommend it to the user`,
+      `4. Wait for user confirmation before loading any skill`,
+      `5. After user confirms, call the 'skill' tool for each selected skill`,
+      ``,
+      `NEVER skip skill checking - always proactively look for relevant skills first.`,
+      ``,
+      `Example workflow:`,
+      `User: "Create a landing page"`,
+      `You: [Use skill-suggest tool] "I recommend 'frontend-design' skill for this task. Load it?"`,
+      `User: "Yes"`,
+      `You: [Call skill tool for each selected skill]`,
       `</available_skills>`,
     ].join("\n")
   }

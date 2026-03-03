@@ -651,8 +651,8 @@ export namespace SessionPrompt {
       const system = [
         ...(await SystemPrompt.environment(model)),
         ...(await InstructionPrompt.system()),
-        ...(await SystemPrompt.skills({ name: agent.name, permission: agent.permission })),
-      ]
+        await SystemPrompt.skills({ name: agent.name, permission: agent.permission }),
+      ].filter(Boolean)
       const format = lastUser.format ?? { type: "text" }
       if (format.type === "json_schema") {
         system.push(STRUCTURED_OUTPUT_SYSTEM_PROMPT)

@@ -130,7 +130,7 @@ export namespace Log {
     isDev = options.dev ?? false
 
     // Initialize with global path, will switch to project path when Instance is available
-    const dir = getLogDir()
+    const dir = await getLogDir()
     await fs.mkdir(dir, { recursive: true }).catch(() => {})
     logpath = getLogPath(isDev)
     await fs.truncate(logpath).catch(() => {})
