@@ -283,28 +283,31 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
                   </Show>
                   <text fg={theme.text}>
                     <b>Skills</b>
+                    <span style={{ fg: theme.textMuted }}> ({skills().length})</span>
                   </text>
                 </box>
                 <Show when={skills().length <= 2 || expanded.skills}>
                   <For each={skills()}>
                     {(skill) => (
-                      <box flexDirection="row" gap={1} paddingLeft={2}>
-                        <text
-                          flexShrink={0}
-                          fg={theme.textMuted}
-                          onMouseDown={() => setExpandedSkill(expandedSkill() === skill.name ? "" : skill.name)}
-                        >
-                          {expandedSkill() === skill.name ? "▼" : "▶"}
-                        </text>
-                        <text fg={theme.text}>{skill.name}</text>
-                      </box>
+                      <>
+                        <box flexDirection="row" gap={1} paddingLeft={2}>
+                          <text
+                            flexShrink={0}
+                            fg={theme.textMuted}
+                            onMouseDown={() => setExpandedSkill(expandedSkill() === skill.name ? "" : skill.name)}
+                          >
+                            {expandedSkill() === skill.name ? "▼" : "▶"}
+                          </text>
+                          <text fg={theme.text}>{skill.name}</text>
+                        </box>
+                        <Show when={expandedSkill() === skill.name}>
+                          <box paddingLeft={4}>
+                            <text fg={theme.textMuted}>{skill.description}</text>
+                          </box>
+                        </Show>
+                      </>
                     )}
                   </For>
-                  <Show when={expandedSkill()}>
-                    <box paddingLeft={4}>
-                      <text fg={theme.textMuted}>{skills().find((s) => s.name === expandedSkill())?.description}</text>
-                    </box>
-                  </Show>
                 </Show>
               </box>
             </Show>
