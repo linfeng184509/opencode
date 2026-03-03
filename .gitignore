@@ -34,5 +34,5 @@ logs/
 *.bun-build
 tsconfig.tsbuildinfo
 
-# OpenCode project logs
-.opencode/log/
+# OpenCode project directory
+.opencode/
