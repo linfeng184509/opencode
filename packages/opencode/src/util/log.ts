@@ -49,9 +49,53 @@ export namespace Log {
   }
 
   let logpath = ""
+  let logDir: string | null = null
+  let currentStream: ReturnType<typeof createWriteStream> | null = null
+  let isDev = false
   export function file() {
     return logpath
   }
+
+  function getLogDir(): string {
+    // Always check for Instance directory first
+    try {
+      const mod = require("@/project/instance") as typeof import("@/project/instance")
+      const dir = mod.Instance.directory
+      if (dir) {
+        return path.join(dir, ".opencode", "log")
+      }
+    } catch {
+      // Instance not available
+    }
+    return Global.Path.log
+  }
+
+  function getLogPath(dev: boolean): string {
+    const dir = getLogDir()
+    return path.join(dir, dev ? "dev.log" : new Date().toISOString().split(".")[0].replace(/:/g, "") + ".log")
+  }
+
+  async function ensureStream(dev: boolean) {
+    const targetPath = getLogPath(dev)
+    if (currentStream && logpath === targetPath) {
+      return currentStream
+    }
+    // New path - cleanup old files first
+    const newDir = getLogDir()
+    await cleanup(newDir).catch(() => {})
+
+    // Close old stream
+    if (currentStream) {
+      currentStream.end()
+    }
+    // Create new directory and stream
+    await fs.mkdir(newDir, { recursive: true }).catch(() => {})
+    logpath = targetPath
+    await fs.truncate(logpath).catch(() => {})
+    currentStream = createWriteStream(logpath, { flags: "a" })
+    return currentStream
+  }
+
   let write = (msg: any) => {
     process.stderr.write(msg)
     return msg.length
@@ -59,15 +103,20 @@ export namespace Log {
 
   export async function init(options: Options) {
     if (options.level) level = options.level
-    cleanup(Global.Path.log)
     if (options.print) return
-    logpath = path.join(
-      Global.Path.log,
-      options.dev ? "dev.log" : new Date().toISOString().split(".")[0].replace(/:/g, "") + ".log",
-    )
+
+    isDev = options.dev ?? false
+
+    // Initialize with global path, will switch to project path when Instance is available
+    const dir = getLogDir()
+    await fs.mkdir(dir, { recursive: true }).catch(() => {})
+    logpath = getLogPath(isDev)
     await fs.truncate(logpath).catch(() => {})
     const stream = createWriteStream(logpath, { flags: "a" })
+    currentStream = stream
     write = async (msg: any) => {
+      // Check if we should switch to project directory and cleanup old files
+      const stream = await ensureStream(isDev)
       return new Promise((resolve, reject) => {
         stream.write(msg, (err) => {
           if (err) reject(err)

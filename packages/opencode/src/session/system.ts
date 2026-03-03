@@ -1,6 +1,8 @@
 import { Ripgrep } from "../file/ripgrep"
 
 import { Instance } from "../project/instance"
+import { Skill } from "../skill/skill"
+import { PermissionNext } from "../permission/next"
 
 import PROMPT_ANTHROPIC from "./prompt/anthropic.txt"
 import PROMPT_ANTHROPIC_WITHOUT_TODO from "./prompt/qwen.txt"
@@ -50,5 +52,27 @@ export namespace SystemPrompt {
         `</directories>`,
       ].join("\n"),
     ]
+  }
+
+  export async function skills(agent?: { name: string; permission: any }) {
+    const allSkills = await Skill.all()
+
+    // Filter skills by agent permissions (same logic as skill.ts)
+    const accessibleSkills = agent
+      ? allSkills.filter((skill) => {
+          const rule = PermissionNext.evaluate("skill", skill.name, agent.permission)
+          return rule.action !== "deny"
+        })
+      : allSkills
+
+    if (accessibleSkills.length === 0) return ""
+
+    return [
+      `<available_skills>`,
+      `The following skills are available. Call the 'skill' tool to load a skill before starting work:`,
+      ``,
+      ...accessibleSkills.map((s) => `- ${s.name}: ${s.description}`),
+      `</available_skills>`,
+    ].join("\n")
   }
 }
