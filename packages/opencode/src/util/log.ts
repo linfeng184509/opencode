@@ -56,10 +56,10 @@ export namespace Log {
     return logpath
   }
 
-  function getLogDir(): string {
+  async function getLogDir(): Promise<string> {
     // Always check for Instance directory first
     try {
-      const mod = require("@/project/instance") as typeof import("@/project/instance")
+      const mod = await import("@/project/instance")
       const dir = mod.Instance.directory
       if (dir) {
         return path.join(dir, ".opencode", "log")
@@ -71,17 +71,39 @@ export namespace Log {
   }
 
   function getLogPath(dev: boolean): string {
-    const dir = getLogDir()
-    return path.join(dir, dev ? "dev.log" : new Date().toISOString().split(".")[0].replace(/:/g, "") + ".log")
+    // Synchronous fallback - use global path
+    return path.join(
+      Global.Path.log,
+      dev ? "dev.log" : new Date().toISOString().split(".")[0].replace(/:/g, "") + ".log",
+    )
+  }
+
+  async function ensureLogPath(dev: boolean): Promise<string> {
+    // Async version that checks Instance directory
+    try {
+      const mod = await import("@/project/instance")
+      const dir = mod.Instance.directory
+      if (dir) {
+        return path.join(
+          dir,
+          ".opencode",
+          "log",
+          dev ? "dev.log" : new Date().toISOString().split(".")[0].replace(/:/g, "") + ".log",
+        )
+      }
+    } catch {
+      // Instance not available, use global path
+    }
+    return getLogPath(dev)
   }
 
   async function ensureStream(dev: boolean) {
-    const targetPath = getLogPath(dev)
+    const targetPath = await ensureLogPath(dev)
     if (currentStream && logpath === targetPath) {
       return currentStream
     }
     // New path - cleanup old files first
-    const newDir = getLogDir()
+    const newDir = path.dirname(targetPath)
     await cleanup(newDir).catch(() => {})
 
     // Close old stream
