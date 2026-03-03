@@ -1,5 +1,5 @@
 import { useSync } from "@tui/context/sync"
-import { createMemo, For, Show, Switch, Match } from "solid-js"
+import { createMemo, For, Show, Switch, Match, createSignal } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useTheme } from "../../context/theme"
 import { Locale } from "@/util/locale"
@@ -25,7 +25,10 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
     diff: true,
     todo: true,
     lsp: true,
+    skills: true,
   })
+
+  const [expandedSkill, setExpandedSkill] = createSignal<string>("")
 
   // Sort MCP servers alphabetically for consistent display order
   const mcpEntries = createMemo(() => Object.entries(sync.data.mcp).sort(([a], [b]) => a.localeCompare(b)))
@@ -39,6 +42,8 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
           item.status === "failed" || item.status === "needs_auth" || item.status === "needs_client_registration",
       ).length,
   )
+
+  const skills = createMemo(() => sync.data.skills)
 
   const cost = createMemo(() => {
     const total = messages().reduce((sum, x) => sum + (x.role === "assistant" ? x.cost : 0), 0)
@@ -263,6 +268,43 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
                       )
                     }}
                   </For>
+                </Show>
+              </box>
+            </Show>
+            <Show when={skills().length > 0}>
+              <box>
+                <box
+                  flexDirection="row"
+                  gap={1}
+                  onMouseDown={() => skills().length > 2 && setExpanded("skills", !expanded.skills)}
+                >
+                  <Show when={skills().length > 2}>
+                    <text fg={theme.text}>{expanded.skills ? "▼" : "▶"}</text>
+                  </Show>
+                  <text fg={theme.text}>
+                    <b>Skills</b>
+                  </text>
+                </box>
+                <Show when={skills().length <= 2 || expanded.skills}>
+                  <For each={skills()}>
+                    {(skill) => (
+                      <box flexDirection="row" gap={1} paddingLeft={2}>
+                        <text
+                          flexShrink={0}
+                          fg={theme.textMuted}
+                          onMouseDown={() => setExpandedSkill(expandedSkill() === skill.name ? "" : skill.name)}
+                        >
+                          {expandedSkill() === skill.name ? "▼" : "▶"}
+                        </text>
+                        <text fg={theme.text}>{skill.name}</text>
+                      </box>
+                    )}
+                  </For>
+                  <Show when={expandedSkill()}>
+                    <box paddingLeft={4}>
+                      <text fg={theme.textMuted}>{skills().find((s) => s.name === expandedSkill())?.description}</text>
+                    </box>
+                  </Show>
                 </Show>
               </box>
             </Show>
