@@ -73,6 +73,7 @@ export namespace Session {
       share,
       revert,
       permission: row.permission ?? undefined,
+      loadedSkills: row.loaded_skills ?? [],
       time: {
         created: row.time_created,
         updated: row.time_updated,
@@ -99,6 +100,7 @@ export namespace Session {
       summary_diffs: info.summary?.diffs,
       revert: info.revert ?? null,
       permission: info.permission,
+      loaded_skills: info.loadedSkills,
       time_created: info.time.created,
       time_updated: info.time.updated,
       time_compacting: info.time.compacting,
@@ -146,6 +148,7 @@ export namespace Session {
         archived: z.number().optional(),
       }),
       permission: PermissionNext.Ruleset.optional(),
+      loadedSkills: z.string().array().optional(),
       revert: z
         .object({
           messageID: z.string(),
@@ -500,6 +503,42 @@ export namespace Session {
           .get()
         if (!row) throw new NotFoundError({ message: `Session not found: ${input.sessionID}` })
         const info = fromRow(row)
+        Database.effect(() => Bus.publish(Event.Updated, { info }))
+        return info
+      })
+    },
+  )
+
+  export const addLoadedSkill = fn(
+    z.object({
+      sessionID: Identifier.schema("session"),
+      skillName: z.string(),
+    }),
+    async (input) => {
+      return Database.use((db) => {
+        const row = db
+          .select()
+          .from(SessionTable)
+          .where(eq(SessionTable.id, input.sessionID))
+          .get()
+        if (!row) throw new NotFoundError({ message: `Session not found: ${input.sessionID}` })
+
+        const currentSkills = row.loaded_skills ?? []
+        if (currentSkills.includes(input.skillName)) {
+          return fromRow(row)
+        }
+
+        const updated = db
+          .update(SessionTable)
+          .set({
+            loaded_skills: [...currentSkills, input.skillName],
+            time_updated: Date.now(),
+          })
+          .where(eq(SessionTable.id, input.sessionID))
+          .returning()
+          .get()
+
+        const info = fromRow(updated!)
         Database.effect(() => Bus.publish(Event.Updated, { info }))
         return info
       })

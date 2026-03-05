@@ -45,6 +45,11 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
 
   const skills = createMemo(() => sync.data.skills)
 
+  const loadedSkills = createMemo(() => {
+    const s = session()
+    return new Set((s as any)?.loadedSkills ?? [])
+  })
+
   const cost = createMemo(() => {
     const total = messages().reduce((sum, x) => sum + (x.role === "assistant" ? x.cost : 0), 0)
     return new Intl.NumberFormat("en-US", {
@@ -288,25 +293,31 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
                 </box>
                 <Show when={skills().length <= 2 || expanded.skills}>
                   <For each={skills()}>
-                    {(skill) => (
-                      <>
-                        <box flexDirection="row" gap={1} paddingLeft={2}>
-                          <text
-                            flexShrink={0}
-                            fg={theme.textMuted}
-                            onMouseDown={() => setExpandedSkill(expandedSkill() === skill.name ? "" : skill.name)}
-                          >
-                            {expandedSkill() === skill.name ? "▼" : "▶"}
-                          </text>
-                          <text fg={theme.text}>{skill.name}</text>
-                        </box>
-                        <Show when={expandedSkill() === skill.name}>
-                          <box paddingLeft={4}>
-                            <text fg={theme.textMuted}>{skill.description}</text>
+                    {(skill) => {
+                      const isLoaded = createMemo(() => loadedSkills().has(skill.name))
+                      return (
+                        <>
+                          <box flexDirection="row" gap={1} paddingLeft={2}>
+                            <text
+                              flexShrink={0}
+                              fg={isLoaded() ? theme.success : theme.textMuted}
+                              onMouseDown={() => setExpandedSkill(expandedSkill() === skill.name ? "" : skill.name)}
+                            >
+                              {expandedSkill() === skill.name ? "▼" : "▶"}
+                            </text>
+                            <text fg={isLoaded() ? theme.success : theme.text}>{skill.name}</text>
+                            <Show when={isLoaded()}>
+                              <text fg={theme.success}>✓</text>
+                            </Show>
                           </box>
-                        </Show>
-                      </>
-                    )}
+                          <Show when={expandedSkill() === skill.name}>
+                            <box paddingLeft={4}>
+                              <text fg={theme.textMuted}>{skill.description}</text>
+                            </box>
+                          </Show>
+                        </>
+                      )
+                    }}
                   </For>
                 </Show>
               </box>

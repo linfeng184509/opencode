@@ -90,7 +90,7 @@ Use this skill.
             },
           }
 
-          const result = await tool.execute({ name: "tool-skill" }, ctx)
+          const result = await tool.execute({ skills: [{ name: "tool-skill" }] }, ctx)
           const dir = path.join(tmp.path, ".opencode", "skill", "tool-skill")
           const file = path.resolve(dir, "scripts", "demo.txt")
 

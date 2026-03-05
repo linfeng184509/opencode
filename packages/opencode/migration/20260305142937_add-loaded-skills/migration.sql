@@ -1,0 +1,1 @@
+ALTER TABLE `session` ADD `loaded_skills` text;

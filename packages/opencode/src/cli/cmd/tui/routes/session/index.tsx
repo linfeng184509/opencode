@@ -2188,9 +2188,10 @@ function Question(props: ToolProps<typeof QuestionTool>) {
 }
 
 function Skill(props: ToolProps<typeof SkillTool>) {
+  const skillName = createMemo(() => props.input.skills?.[0]?.name ?? "unknown")
   return (
-    <InlineTool icon="→" pending="Loading skill..." complete={props.input.name} part={props.part}>
-      Skill "{props.input.name}"
+    <InlineTool icon="→" pending="Loading skill..." complete={skillName()} part={props.part}>
+      Skill "{skillName()}"
     </InlineTool>
   )
 }

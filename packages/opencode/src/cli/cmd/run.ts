@@ -185,9 +185,10 @@ function task(info: ToolProps<typeof TaskTool>) {
 }
 
 function skill(info: ToolProps<typeof SkillTool>) {
+  const skillName = info.input.skills[0]?.name ?? "unknown"
   inline({
     icon: "→",
-    title: `Skill "${info.input.name}"`,
+    title: `Skill "${skillName}"`,
   })
 }
 
