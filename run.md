@@ -18,7 +18,7 @@ bun install
 ### 2. 运行项目
 
 ```bash
-# 启动 TUI (终端界面 )
+# 启动 TUI (终端界面)
 bun dev
 
 # 或指定工作目录
