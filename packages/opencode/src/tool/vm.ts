@@ -2,6 +2,7 @@
  * VM 管理工具
  *
  * 提供虚拟机的创建、启动、停止、快照、文件传输等功能
+ * 仅支持 VirtualBox (本地和远程)
  */
 
 import { z } from "zod";
@@ -15,17 +16,16 @@ const log = Log.create({ service: "tool.vm" });
  * VM_Create - 创建虚拟机
  */
 export const VMCreateTool = Tool.define("vm_create", async () => ({
-  description: "创建虚拟机 (支持 VirtualBox/Docker/WSL)",
+  description: "创建虚拟机 (VirtualBox)",
   parameters: z.object({
     name: z.string().describe("虚拟机名称"),
     os: z.string().default("ubuntu-22.04").describe("操作系统类型"),
     cpu: z.number().default(2).describe("CPU 核心数"),
     memory: z.string().default("4096").describe("内存大小 (MB)"),
     disk: z.string().default("20G").describe("磁盘大小"),
-    provider: z.enum(["auto", "virtualbox", "docker", "wsl"]).default("auto").describe("VM 提供者"),
   }),
   execute: async (args) => {
-    const { name, os, cpu, memory, disk, provider } = args;
+    const { name, os, cpu, memory, disk } = args;
 
     try {
       const vmProvider = await getVMProvider();
@@ -42,7 +42,6 @@ export const VMCreateTool = Tool.define("vm_create", async () => ({
       return {
         title: `创建虚拟机：${name}`,
         output: `虚拟机 "${name}" 已创建成功\n` +
-          `  - 提供者：${vm.provider}\n` +
           `  - 状态：${vm.status}\n` +
           `  - 操作系统：${os}\n` +
           `  - CPU: ${cpu} 核心\n` +

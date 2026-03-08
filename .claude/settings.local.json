@@ -3,7 +3,9 @@
     "allow": [
       "Bash(bun dev:*)",
       "Bash(bun run:*)",
-      "Bash(bun:*)"
+      "Bash(bun:*)",
+      "Bash(git commit:*)",
+      "Bash(rm:*)"
     ]
   }
 }
