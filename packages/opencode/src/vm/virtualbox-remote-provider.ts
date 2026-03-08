@@ -38,6 +38,7 @@ export class VirtualBoxRemoteProvider extends VMProviderBase {
   private defaultHost = "127.0.0.1";
   private defaultPort = 2222;
   private defaultUsername = "vagrant";
+  private lastSSHConfig: SSHConfig | null = null;
 
   /**
    * 构建 SSH 配置
@@ -68,6 +69,9 @@ export class VirtualBoxRemoteProvider extends VMProviderBase {
     const { name } = config;
 
     log.info(`创建 VM: ${name} @ ${config.remote_host || "127.0.0.1"}:${config.ssh_port || this.defaultPort}`);
+
+    // 保存 SSH 配置供后续使用
+    this.lastSSHConfig = this.buildSSHConfig(config);
 
     // 验证 SSH 连接和 VirtualBox
     await this.testConnection(config);
@@ -100,7 +104,9 @@ export class VirtualBoxRemoteProvider extends VMProviderBase {
     const client = new SSHClient(this.buildSSHConfig(config));
     try {
       await client.connect();
-      const result = await client.exec("VBoxManage --version");
+      // macOS 需要完整路径
+      const vboxManage = "/Applications/VirtualBox.app/Contents/MacOS/VBoxManage";
+      const result = await client.exec(`${vboxManage} --version`);
       if (result.code !== 0) {
         throw new Error(`VirtualBox 未安装：${result.stderr}`);
       }
@@ -113,11 +119,40 @@ export class VirtualBoxRemoteProvider extends VMProviderBase {
   /**
    * 获取 VM 状态
    */
+  private async getVMStatusWithConfig(config: SSHConfig, name: string): Promise<VMStatus | null> {
+    const client = new SSHClient(config);
+    try {
+      await client.connect();
+      const vboxManage = "/Applications/VirtualBox.app/Contents/MacOS/VBoxManage";
+      const result = await client.exec(`${vboxManage} showvminfo "${name}" --machinereadable`);
+
+      if (result.code !== 0) return null;
+
+      const stateMatch = result.stdout.match(/vmState="([^"]+)"/);
+      if (stateMatch) {
+        const state = stateMatch[1];
+        if (state === "running") return "running";
+        if (state === "powered off") return "stopped";
+        if (state === "saved") return "saved";
+        if (state === "paused") return "paused";
+      }
+      return "stopped";
+    } catch {
+      return null;
+    } finally {
+      client.close();
+    }
+  }
+
+  /**
+   * 获取 VM 状态（从实例数据）
+   */
   private async getVMStatus(config: VirtualBoxRemoteConfig, name: string): Promise<VMStatus | null> {
     const client = new SSHClient(this.buildSSHConfig(config));
     try {
       await client.connect();
-      const result = await client.exec(`VBoxManage showvminfo "${name}" --machinereadable`);
+      const vboxManage = "/Applications/VirtualBox.app/Contents/MacOS/VBoxManage";
+      const result = await client.exec(`${vboxManage} showvminfo "${name}" --machinereadable`);
 
       if (result.code !== 0) return null;
 
@@ -155,7 +190,9 @@ export class VirtualBoxRemoteProvider extends VMProviderBase {
     const client = await this.getSSHClient(name);
     try {
       await client.connect();
-      const result = await client.exec(`VBoxManage ${command}`);
+      // macOS 需要完整路径，因为 PATH 不包含 VirtualBox
+      const vboxManage = "/Applications/VirtualBox.app/Contents/MacOS/VBoxManage";
+      const result = await client.exec(`${vboxManage} ${command}`);
       return { stdout: result.stdout, stderr: result.stderr, exitCode: result.code };
     } finally {
       client.close();
@@ -276,21 +313,27 @@ export class VirtualBoxRemoteProvider extends VMProviderBase {
 
   async list(): Promise<VMInstance[]> {
     const result: VMInstance[] = [];
-    const client = await this.getSSHClient("default");
+    // 使用存储的 SSH 配置
+    if (!this.lastSSHConfig) {
+      log.error("list 调用前未建立 SSH 连接");
+      return result;
+    }
+    const client = new SSHClient(this.lastSSHConfig);
     try {
       await client.connect();
-      const listResult = await client.exec("VBoxManage list vms");
+      const vboxManage = "/Applications/VirtualBox.app/Contents/MacOS/VBoxManage";
+      const listResult = await client.exec(`${vboxManage} list vms`);
       if (listResult.code === 0) {
         const lines = listResult.stdout.trim().split("\n").filter(Boolean);
         for (const line of lines) {
           const match = line.match(/"([^"]+)" \{([^}]+)\}/);
           if (match) {
             const vmName = match[1];
-            const status = await this.getStatus(vmName);
+            const status = await this.getVMStatusWithConfig(this.lastSSHConfig, vmName);
             result.push({
               id: `vbox-remote-${vmName}`,
               name: vmName,
-              status,
+              status: status || "stopped",
               provider: "remote-ssh",
               capabilities: { snapshot: true, screenshot: false, gui: false, headless: true },
             });
@@ -306,10 +349,11 @@ export class VirtualBoxRemoteProvider extends VMProviderBase {
   }
 
   async isAvailable(): Promise<boolean> {
-    const client = new SSHClient(this.buildSSHConfig({ name: "default" }));
+    const client = new SSHClient(this.buildSSHConfig({ name: "check" } as any));
     try {
       await client.connect();
-      const result = await client.exec("VBoxManage --version");
+      const vboxManage = "/Applications/VirtualBox.app/Contents/MacOS/VBoxManage";
+      const result = await client.exec(`${vboxManage} --version`);
       return result.code === 0;
     } catch {
       return false;

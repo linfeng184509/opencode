@@ -5,7 +5,9 @@
       "Bash(bun run:*)",
       "Bash(bun:*)",
       "Bash(git commit:*)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(git config:*)",
+      "Bash(npm install:*)"
     ]
   }
 }
