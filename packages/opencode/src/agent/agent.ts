@@ -13,6 +13,7 @@ import PROMPT_COMPACTION from "./prompt/compaction.txt"
 import PROMPT_EXPLORE from "./prompt/explore.txt"
 import PROMPT_SUMMARY from "./prompt/summary.txt"
 import PROMPT_TITLE from "./prompt/title.txt"
+import PROMPT_VM_TEST from "./prompt/vm-test.txt"
 import { PermissionNext } from "@/permission/next"
 import { mergeDeep, pipe, sortBy, values } from "remeda"
 import { Global } from "@/global"
@@ -83,6 +84,22 @@ export namespace Agent {
           PermissionNext.fromConfig({
             question: "allow",
             plan_enter: "allow",
+            // Deny VM and test tools - these are only available to vm_test subagent
+            vm_create: "deny",
+            vm_start: "deny",
+            vm_stop: "deny",
+            vm_destroy: "deny",
+            vm_snapshot: "deny",
+            vm_restore: "deny",
+            vm_exec: "deny",
+            vm_upload: "deny",
+            vm_download: "deny",
+            vm_screenshot: "deny",
+            vm_list: "deny",
+            vm_status: "deny",
+            test_run: "deny",
+            test_simulate: "deny",
+            test_collect: "deny",
           }),
           user,
         ),
@@ -120,6 +137,22 @@ export namespace Agent {
           PermissionNext.fromConfig({
             todoread: "deny",
             todowrite: "deny",
+            // Deny VM and test tools - these are only available to vm_test subagent
+            vm_create: "deny",
+            vm_start: "deny",
+            vm_stop: "deny",
+            vm_destroy: "deny",
+            vm_snapshot: "deny",
+            vm_restore: "deny",
+            vm_exec: "deny",
+            vm_upload: "deny",
+            vm_download: "deny",
+            vm_screenshot: "deny",
+            vm_list: "deny",
+            vm_status: "deny",
+            test_run: "deny",
+            test_simulate: "deny",
+            test_collect: "deny",
           }),
           user,
         ),
@@ -199,6 +232,58 @@ export namespace Agent {
           user,
         ),
         prompt: PROMPT_SUMMARY,
+      },
+      vm_test: {
+        name: "vm_test",
+        description: "专门用于虚拟机测试的子 agent。负责 VM 创建/管理、测试执行、结果收集等任务。",
+        permission: PermissionNext.merge(
+          defaults,
+          PermissionNext.fromConfig({
+            "*": "deny",
+            // VM 管理工具
+            vm_create: "allow",
+            vm_start: "allow",
+            vm_stop: "allow",
+            vm_destroy: "allow",
+            vm_snapshot: "allow",
+            vm_restore: "allow",
+            vm_exec: "allow",
+            vm_upload: "allow",
+            vm_download: "allow",
+            vm_screenshot: "allow",
+            vm_list: "allow",
+            vm_status: "allow",
+            // 远程 VirtualBox 工具
+            vm_remote_vbox_connect: "allow",
+            vm_remote_vbox_disconnect: "allow",
+            vm_remote_vbox_start: "allow",
+            vm_remote_vbox_stop: "allow",
+            vm_remote_vbox_snapshot: "allow",
+            vm_remote_vbox_restore: "allow",
+            vm_remote_vbox_exec: "allow",
+            // 测试工具
+            test_run: "allow",
+            test_simulate: "allow",
+            test_collect: "allow",
+            // 基础工具
+            bash: "allow",
+            read: "allow",
+            write: "allow",
+            edit: "allow",
+            glob: "allow",
+            grep: "allow",
+            list: "allow",
+            external_directory: {
+              "*": "ask",
+              ...Object.fromEntries(whitelistedDirs.map((dir) => [dir, "allow"])),
+            },
+          }),
+          user,
+        ),
+        prompt: PROMPT_VM_TEST,
+        options: {},
+        mode: "subagent",
+        native: true,
       },
     }
 

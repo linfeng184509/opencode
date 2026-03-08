@@ -31,6 +31,30 @@ import { ApplyPatchTool } from "./apply_patch"
 import { Glob } from "../util/glob"
 import { pathToFileURL } from "url"
 
+// VM 测试工具
+import {
+  VMCreateTool,
+  VMStartTool,
+  VMStopTool,
+  VMDestroyTool,
+  VMSnapshotTool,
+  VMRestoreTool,
+  VMExecTool,
+  VMUploadTool,
+  VMDownloadTool,
+  VMScreenshotTool,
+  VMListTool,
+  VMStatusTool,
+  VMRemoteVBoxConnectTool,
+  VMRemoteVBoxDisconnectTool,
+  VMRemoteVBoxStartTool,
+  VMRemoteVBoxStopTool,
+  VMRemoteVBoxSnapshotTool,
+  VMRemoteVBoxRestoreTool,
+  VMRemoteVBoxExecTool,
+} from "./vm"
+import { TestRunTool, TestSimulateTool, TestCollectTool } from "./test"
+
 export namespace ToolRegistry {
   const log = Log.create({ service: "tool.registry" })
 
@@ -120,6 +144,30 @@ export namespace ToolRegistry {
       ...(Flag.OPENCODE_EXPERIMENTAL_LSP_TOOL ? [LspTool] : []),
       ...(config.experimental?.batch_tool === true ? [BatchTool] : []),
       ...(Flag.OPENCODE_EXPERIMENTAL_PLAN_MODE && Flag.OPENCODE_CLIENT === "cli" ? [PlanExitTool] : []),
+      // VM 测试工具
+      VMCreateTool,
+      VMStartTool,
+      VMStopTool,
+      VMDestroyTool,
+      VMSnapshotTool,
+      VMRestoreTool,
+      VMExecTool,
+      VMUploadTool,
+      VMDownloadTool,
+      VMScreenshotTool,
+      VMListTool,
+      VMStatusTool,
+      // 远程 VirtualBox 工具
+      VMRemoteVBoxConnectTool,
+      VMRemoteVBoxDisconnectTool,
+      VMRemoteVBoxStartTool,
+      VMRemoteVBoxStopTool,
+      VMRemoteVBoxSnapshotTool,
+      VMRemoteVBoxRestoreTool,
+      VMRemoteVBoxExecTool,
+      TestRunTool,
+      TestSimulateTool,
+      TestCollectTool,
       ...custom,
     ]
   }
