@@ -1,7 +1,7 @@
 /**
  * VM 提供者注册表
  *
- * 仅支持 VirtualBox (本地和远程)
+ * 仅支持 VirtualBox Remote (通过 SSH 管理本地/远程 VirtualBox)
  */
 
 import type { VMInstance } from "./base";
@@ -10,7 +10,7 @@ import { Log } from "@/util/log";
 
 const log = Log.create({ service: "vm.registry" });
 
-export type ProviderName = "virtualbox" | "virtualbox-remote" | "auto";
+export type ProviderName = "virtualbox-remote" | "auto";
 
 export interface ProviderRegistry {
   getProvider(name?: ProviderName): Promise<VMProviderBase>;
@@ -49,58 +49,34 @@ class DefaultProviderRegistry implements ProviderRegistry {
   }
 
   /**
-   * 优先 VirtualBox，远程 VirtualBox 需要手动指定
+   * 默认使用 virtualbox-remote (本地 SSH 连接)
    */
   getRecommendedProvider(): ProviderName {
-    if (this.hasVirtualBox()) {
-      return "virtualbox";
-    }
-
-    throw new Error(
-      "未找到 VirtualBox。请安装 VirtualBox (https://www.virtualbox.org)",
-    );
+    return "virtualbox-remote";
   }
 
   async getAvailableProviders(): Promise<ProviderInfo[]> {
-    const providers: ProviderInfo[] = [];
-
-    const hasVBox = this.hasVirtualBox();
-    providers.push({
-      name: "virtualbox",
-      available: hasVBox,
+    return [{
+      name: "virtualbox-remote",
+      available: true,
       capabilities: {
-        createVM: hasVBox,
-        snapshot: hasVBox,
-        screenshot: hasVBox,
-        gui: hasVBox,
+        createVM: true,
+        snapshot: true,
+        screenshot: false,
+        gui: false,
       },
       priority: 1,
-    });
-
-    return providers;
+    }];
   }
 
   private async createProvider(name: ProviderName): Promise<VMProviderBase> {
     switch (name) {
-      case "virtualbox":
-        const { VirtualBoxProvider } = await import("./virtualbox-provider");
-        return new VirtualBoxProvider();
-
       case "virtualbox-remote":
         const { VirtualBoxRemoteProvider } = await import("./virtualbox-remote-provider");
         return new VirtualBoxRemoteProvider();
 
       default:
         throw new Error(`未知的提供者：${name}`);
-    }
-  }
-
-  private hasVirtualBox(): boolean {
-    try {
-      require("child_process").execSync("VBoxManage --version", { stdio: "ignore" });
-      return true;
-    } catch {
-      return false;
     }
   }
 }

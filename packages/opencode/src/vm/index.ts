@@ -15,7 +15,6 @@ export {
 export { SSHClient, type SSHConfig, type SSHExecResult } from "./ssh-client";
 
 // 提供者实现
-export { VirtualBoxProvider, type VirtualBoxVM } from "./virtualbox-provider";
 export { VirtualBoxRemoteProvider } from "./virtualbox-remote-provider";
 
 // 注册表

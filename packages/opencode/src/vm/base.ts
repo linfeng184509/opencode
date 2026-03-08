@@ -7,8 +7,8 @@ export type VMStatus = "running" | "stopped" | "paused" | "saved";
 export interface VMConfig {
   /** 虚拟机名称 */
   name: string;
-  /** 操作系统类型 */
-  os: string;
+  /** 操作系统类型 (默认：ubuntu-22.04) */
+  os?: string;
   /** CPU 核心数 */
   cpu?: number;
   /** 内存大小 (如 "4G", "8192M") */
@@ -19,6 +19,16 @@ export interface VMConfig {
   iso?: string;
   /** SSH 端口转发 (默认 2222) */
   ssh_port?: number;
+  /** 远程主机 IP (留空表示本地) */
+  remote_host?: string;
+  /** SSH 用户名 */
+  ssh_username?: string;
+  /** 私钥路径 */
+  private_key_path?: string;
+  /** 私钥内容 */
+  private_key?: string;
+  /** 密码 */
+  password?: string;
 }
 
 export interface VMInstance {

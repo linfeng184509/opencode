@@ -1,7 +1,7 @@
 /**
  * VM 远程 VirtualBox 连接工具
  *
- * 连接到远程 VirtualBox 主机并管理虚拟机
+ * 通过 SSH 连接到 VirtualBox 主机 (本地或远程) 并管理虚拟机
  */
 
 import { z } from "zod";
@@ -12,456 +12,142 @@ import { Log } from "@/util/log";
 
 const log = Log.create({ service: "tool.vm-remote-vbox" });
 
-/**
- * VM_Remote_VBox_Connect - 连接远程 VirtualBox 主机
- */
+const ConnectConfigSchema = z.object({
+  name: z.string().describe("连接名称/标识"),
+  remote_host: z.string().optional().describe("远程主机 IP 或域名 (留空表示本地 127.0.0.1)"),
+  ssh_port: z.number().default(2222).describe("SSH 端口 (默认 2222)"),
+  ssh_username: z.string().default("vagrant").describe("SSH 用户名 (默认 vagrant)"),
+  private_key: z.string().optional().describe("私钥内容"),
+  private_key_path: z.string().optional().describe("私钥文件路径"),
+  password: z.string().optional().describe("密码"),
+});
+
 export const VMRemoteVBoxConnectTool = Tool.define("vm_remote_vbox_connect", async () => ({
-  description: "通过 SSH 连接到远程 VirtualBox 主机并管理虚拟机",
-  parameters: z.object({
-    name: z.string().describe("连接名称/标识"),
-    remote_host: z.string().describe("远程 VirtualBox 主机 IP 或域名"),
-    remote_ssh_port: z.number().default(22).describe("远程 SSH 端口"),
-    remote_username: z.string().default("root").describe("远程 SSH 用户名"),
-    auth_type: z.enum(["password", "key"]).default("password").describe("认证方式"),
-    password: z.string().optional().describe("密码 (auth_type=password 时使用)"),
-    private_key: z.string().optional().describe("私钥内容 (auth_type=key 时使用)"),
-    private_key_path: z.string().optional().describe("私钥文件路径 (auth_type=key 时使用)"),
-  }),
+  description: "通过 SSH 连接到 VirtualBox 主机 (本地/远程) 并管理虚拟机",
+  parameters: ConnectConfigSchema,
   execute: async (args, _ctx) => {
-    const {
-      name,
-      remote_host,
-      remote_ssh_port,
-      remote_username,
-      auth_type,
-      password,
-      private_key,
-      private_key_path,
-    } = args;
-
-    const config: VirtualBoxRemoteConfig = {
-      name,
-      remote_host,
-      remote_ssh_port,
-      remote_username,
-      auth_type,
-      password,
-      private_key,
-      private_key_path,
-      os: "linux",
-    };
+    const { name, remote_host, ssh_port, ssh_username, private_key, private_key_path, password } = args;
+    const config: VirtualBoxRemoteConfig = { name, remote_host, ssh_port, ssh_username, private_key, private_key_path, password };
 
     try {
       const provider = new VirtualBoxRemoteProvider();
-
-      // 测试连接
       await provider.create(config);
+      const vms = await provider.list();
 
-      // 列出远程主机上的所有 VM
-      const result = await provider.exec(name, "VBoxManage list vms");
-
-      let output = `远程 VirtualBox 连接成功\n\n`;
-      output += `连接信息:\n`;
-      output += `  - 名称：${name}\n`;
-      output += `  - 主机：${remote_host}:${remote_ssh_port}\n`;
-      output += `  - 用户：${remote_username}\n`;
-      output += `  - 认证：${auth_type}\n\n`;
-
-      output += `可用虚拟机:\n`;
-      if (result.exitCode === 0) {
-        const vms = result.stdout.trim() || "无";
-        output += `${vms}\n`;
+      let output = `VirtualBox 连接成功\n\n`;
+      output += `连接信息:\n  - 名称：${name}\n  - 主机：${remote_host || "127.0.0.1"}:${ssh_port}\n  - 用户：${ssh_username}\n\n`;
+      output += `可用虚拟机 (${vms.length} 台):\n`;
+      if (vms.length > 0) {
+        for (const vm of vms) output += `  - ${vm.name} (${vm.status})\n`;
       } else {
-        output += `无法获取虚拟机列表\n`;
+        output += `  (无)\n`;
       }
 
-      return {
-        title: `连接远程 VirtualBox: ${name}`,
-        output,
-        metadata: {
-          host: remote_host,
-          port: remote_ssh_port,
-          username: remote_username,
-        },
-      };
+      return { title: `连接 VirtualBox: ${name}`, output, metadata: { host: remote_host || "127.0.0.1", port: ssh_port, username: ssh_username, vms } };
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);
-      return {
-        title: `连接远程 VirtualBox 失败：${name}`,
-        output: `错误：${msg}\n\n请检查:\n  - 主机地址和端口是否正确\n  - SSH 服务是否运行\n  - 认证信息 (密码/私钥) 是否正确\n  - 远程主机是否安装了 VirtualBox`,
-        metadata: {} as Record<string, unknown>,
-      };
+      return { title: `连接失败：${name}`, output: `错误：${msg}\n\n请检查:\n  - 主机地址和端口是否正确\n  - SSH 服务是否运行\n  - 认证信息 (私钥/密码) 是否正确\n  - VirtualBox 是否已安装`, metadata: { host: "", port: 0, username: "", vms: [] } };
     }
   },
 }));
 
-/**
- * VM_Remote_VBox_Disconnect - 断开远程连接
- */
 export const VMRemoteVBoxDisconnectTool = Tool.define("vm_remote_vbox_disconnect", async () => ({
-  description: "断开与远程 VirtualBox 主机的连接",
-  parameters: z.object({
-    name: z.string().describe("连接名称"),
-  }),
-  execute: async (args, _ctx) => {
-    const { name } = args;
-
-    try {
-      // 清理连接
-      return {
-        title: `断开远程连接：${name}`,
-        output: `已断开与远程 VirtualBox 主机 "${name}" 的连接`,
-        metadata: {},
-      };
-    } catch (error: unknown) {
-      const msg = error instanceof Error ? error.message : String(error);
-      return {
-        title: `断开远程连接失败`,
-        output: `错误：${msg}`,
-        metadata: {} as Record<string, unknown>,
-      };
-    }
-  },
+  description: "断开与 VirtualBox 主机的连接 (清理本地缓存)",
+  parameters: z.object({ name: z.string().describe("连接名称") }),
+  execute: async (args) => ({ title: `断开连接：${args.name}`, output: `连接 "${args.name}" 已从本地缓存中移除 (VM 仍在运行)`, metadata: {} }),
 }));
 
-/**
- * VM_Remote_VBox_Start - 启动远程 VM
- */
 export const VMRemoteVBoxStartTool = Tool.define("vm_remote_vbox_start", async () => ({
-  description: "启动远程 VirtualBox 虚拟机",
-  parameters: z.object({
-    name: z.string().describe("虚拟机名称"),
-    remote_host: z.string().describe("远程主机 IP 或域名"),
-    remote_ssh_port: z.number().default(22).describe("SSH 端口"),
-    remote_username: z.string().describe("远程 SSH 用户名"),
-    auth_type: z.enum(["password", "key"]).default("password").describe("认证方式"),
-    password: z.string().optional().describe("密码"),
-    private_key: z.string().optional().describe("私钥内容"),
-    private_key_path: z.string().optional().describe("私钥文件路径"),
-    headless: z.boolean().default(true).describe("是否无头模式启动"),
-  }),
-  execute: async (args, _ctx) => {
-    const {
-      name,
-      remote_host,
-      remote_ssh_port,
-      remote_username,
-      auth_type,
-      password,
-      private_key,
-      private_key_path,
-      headless,
-    } = args;
-
+  description: "启动 VirtualBox 虚拟机",
+  parameters: ConnectConfigSchema.extend({ vm_name: z.string().describe("虚拟机名称"), headless: z.boolean().default(true).describe("无头模式启动") }),
+  execute: async (args) => {
+    const { name, vm_name, remote_host, ssh_port, ssh_username, private_key, private_key_path, password, headless } = args;
+    const config: VirtualBoxRemoteConfig = { name: vm_name, remote_host, ssh_port, ssh_username, private_key, private_key_path, password };
     try {
       const provider = new VirtualBoxRemoteProvider();
-
-      // 先连接
-      await provider.create({
-        name: `conn-${name}`,
-        remote_host,
-        remote_ssh_port,
-        remote_username,
-        auth_type,
-        password,
-        private_key,
-        private_key_path,
-        os: "linux",
-      });
-
-      // 启动 VM
-      await provider.start(name, headless);
-
-      return {
-        title: `启动远程 VM: ${name}`,
-        output: `虚拟机 "${name}" 已启动 (${headless ? "无头模式" : "GUI 模式"})`,
-        metadata: {},
-      };
+      await provider.create(config);
+      await provider.start(vm_name, headless);
+      const ip = await provider.getIP(vm_name);
+      const port = await provider.getSSHPort(vm_name);
+      return { title: `启动 VM: ${vm_name}`, output: `VM 已启动\n  - IP: ${ip}\n  - SSH 端口：${port}`, metadata: { ip, port } };
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);
-      return {
-        title: `启动远程 VM 失败`,
-        output: `错误：${msg}`,
-        metadata: {} as Record<string, unknown>,
-      };
+      return { title: `启动 VM 失败`, output: `错误：${msg}`, metadata: { ip: "", port: 0 } };
     }
   },
 }));
 
-/**
- * VM_Remote_VBox_Stop - 停止远程 VM
- */
 export const VMRemoteVBoxStopTool = Tool.define("vm_remote_vbox_stop", async () => ({
-  description: "停止远程 VirtualBox 虚拟机",
-  parameters: z.object({
-    name: z.string().describe("虚拟机名称"),
-    remote_host: z.string().describe("远程主机 IP 或域名"),
-    remote_ssh_port: z.number().default(22).describe("SSH 端口"),
-    remote_username: z.string().describe("远程 SSH 用户名"),
-    auth_type: z.enum(["password", "key"]).default("password").describe("认证方式"),
-    password: z.string().optional().describe("密码"),
-    private_key: z.string().optional().describe("私钥内容"),
-    private_key_path: z.string().optional().describe("私钥文件路径"),
-    force: z.boolean().default(false).describe("是否强制关闭"),
-  }),
-  execute: async (args, _ctx) => {
-    const {
-      name,
-      remote_host,
-      remote_ssh_port,
-      remote_username,
-      auth_type,
-      password,
-      private_key,
-      private_key_path,
-      force,
-    } = args;
-
+  description: "停止 VirtualBox 虚拟机",
+  parameters: ConnectConfigSchema.extend({ vm_name: z.string().describe("虚拟机名称"), force: z.boolean().default(false).describe("强制关闭") }),
+  execute: async (args) => {
+    const { name, vm_name, remote_host, ssh_port, ssh_username, private_key, private_key_path, password, force } = args;
+    const config: VirtualBoxRemoteConfig = { name: vm_name, remote_host, ssh_port, ssh_username, private_key, private_key_path, password };
     try {
       const provider = new VirtualBoxRemoteProvider();
-
-      // 先连接
-      await provider.create({
-        name: `conn-${name}`,
-        remote_host,
-        remote_ssh_port,
-        remote_username,
-        auth_type,
-        password,
-        private_key,
-        private_key_path,
-        os: "linux",
-      });
-
-      // 停止 VM
-      if (force) {
-        await provider.poweroff(name);
-      } else {
-        await provider.stop(name);
-      }
-
-      return {
-        title: `停止远程 VM: ${name}`,
-        output: `虚拟机 "${name}" 已${force ? "强制关闭" : "正常停止"}`,
-        metadata: {},
-      };
+      await provider.create(config);
+      if (force) await provider.poweroff(vm_name); else await provider.stop(vm_name);
+      return { title: `停止 VM: ${vm_name}`, output: `VM 已${force ? "强制关闭" : "正常停止"}`, metadata: {} };
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);
-      return {
-        title: `停止远程 VM 失败`,
-        output: `错误：${msg}`,
-        metadata: {} as Record<string, unknown>,
-      };
+      return { title: `停止 VM 失败`, output: `错误：${msg}`, metadata: {} };
     }
   },
 }));
 
-/**
- * VM_Remote_VBox_Snapshot - 创建快照
- */
 export const VMRemoteVBoxSnapshotTool = Tool.define("vm_remote_vbox_snapshot", async () => ({
-  description: "为远程 VirtualBox 虚拟机创建快照",
-  parameters: z.object({
-    name: z.string().describe("虚拟机名称"),
-    tag: z.string().describe("快照标签"),
-    description: z.string().optional().describe("快照描述"),
-    remote_host: z.string().describe("远程主机 IP 或域名"),
-    remote_ssh_port: z.number().default(22).describe("SSH 端口"),
-    remote_username: z.string().describe("远程 SSH 用户名"),
-    auth_type: z.enum(["password", "key"]).default("password").describe("认证方式"),
-    password: z.string().optional().describe("密码"),
-    private_key: z.string().optional().describe("私钥内容"),
-    private_key_path: z.string().optional().describe("私钥文件路径"),
-  }),
-  execute: async (args, _ctx) => {
-    const {
-      name,
-      tag,
-      description,
-      remote_host,
-      remote_ssh_port,
-      remote_username,
-      auth_type,
-      password,
-      private_key,
-      private_key_path,
-    } = args;
-
+  description: "为 VirtualBox 虚拟机创建快照",
+  parameters: ConnectConfigSchema.extend({ vm_name: z.string().describe("虚拟机名称"), tag: z.string().describe("快照标签"), description: z.string().optional().describe("快照描述") }),
+  execute: async (args) => {
+    const { name, vm_name, tag, description, remote_host, ssh_port, ssh_username, private_key, private_key_path, password } = args;
+    const config: VirtualBoxRemoteConfig = { name: vm_name, remote_host, ssh_port, ssh_username, private_key, private_key_path, password };
     try {
       const provider = new VirtualBoxRemoteProvider();
-
-      // 先连接
-      await provider.create({
-        name: `conn-${name}`,
-        remote_host,
-        remote_ssh_port,
-        remote_username,
-        auth_type,
-        password,
-        private_key,
-        private_key_path,
-        os: "linux",
-      });
-
-      // 创建快照
-      await provider.snapshot(name, tag, description);
-
-      return {
-        title: `创建快照：${name} -> ${tag}`,
-        output: `快照 "${tag}" 已创建${description ? `:\n  ${description}` : ""}`,
-        metadata: {},
-      };
+      await provider.create(config);
+      await provider.snapshot(vm_name, tag, description);
+      return { title: `创建快照：${vm_name} -> ${tag}`, output: `快照 "${tag}" 已创建${description ? `:\n  ${description}` : ""}`, metadata: { tag, description } };
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);
-      return {
-        title: `创建快照失败`,
-        output: `错误：${msg}`,
-        metadata: {} as Record<string, unknown>,
-      };
+      return { title: `创建快照失败`, output: `错误：${msg}`, metadata: { tag: "", description: "" } };
     }
   },
 }));
 
-/**
- * VM_Remote_VBox_Restore - 恢复快照
- */
 export const VMRemoteVBoxRestoreTool = Tool.define("vm_remote_vbox_restore", async () => ({
-  description: "恢复远程 VirtualBox 虚拟机的快照",
-  parameters: z.object({
-    name: z.string().describe("虚拟机名称"),
-    tag: z.string().describe("快照标签"),
-    remote_host: z.string().describe("远程主机 IP 或域名"),
-    remote_ssh_port: z.number().default(22).describe("SSH 端口"),
-    remote_username: z.string().describe("远程 SSH 用户名"),
-    auth_type: z.enum(["password", "key"]).default("password").describe("认证方式"),
-    password: z.string().optional().describe("密码"),
-    private_key: z.string().optional().describe("私钥内容"),
-    private_key_path: z.string().optional().describe("私钥文件路径"),
-  }),
-  execute: async (args, _ctx) => {
-    const {
-      name,
-      tag,
-      remote_host,
-      remote_ssh_port,
-      remote_username,
-      auth_type,
-      password,
-      private_key,
-      private_key_path,
-    } = args;
-
+  description: "恢复 VirtualBox 虚拟机的快照",
+  parameters: ConnectConfigSchema.extend({ vm_name: z.string().describe("虚拟机名称"), tag: z.string().describe("快照标签") }),
+  execute: async (args) => {
+    const { name, vm_name, tag, remote_host, ssh_port, ssh_username, private_key, private_key_path, password } = args;
+    const config: VirtualBoxRemoteConfig = { name: vm_name, remote_host, ssh_port, ssh_username, private_key, private_key_path, password };
     try {
       const provider = new VirtualBoxRemoteProvider();
-
-      // 先连接
-      await provider.create({
-        name: `conn-${name}`,
-        remote_host,
-        remote_ssh_port,
-        remote_username,
-        auth_type,
-        password,
-        private_key,
-        private_key_path,
-        os: "linux",
-      });
-
-      // 恢复快照
-      await provider.restore(name, tag);
-
-      return {
-        title: `恢复快照：${name} <- ${tag}`,
-        output: `快照 "${tag}" 已恢复`,
-        metadata: {},
-      };
+      await provider.create(config);
+      await provider.restore(vm_name, tag);
+      return { title: `恢复快照：${vm_name} <- ${tag}`, output: `快照 "${tag}" 已恢复`, metadata: {} };
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);
-      return {
-        title: `恢复快照失败`,
-        output: `错误：${msg}`,
-        metadata: {} as Record<string, unknown>,
-      };
+      return { title: `恢复快照失败`, output: `错误：${msg}`, metadata: {} };
     }
   },
 }));
 
-/**
- * VM_Remote_VBox_Exec - 在远程 VM 执行命令
- */
 export const VMRemoteVBoxExecTool = Tool.define("vm_remote_vbox_exec", async () => ({
-  description: "在远程 VirtualBox 虚拟机中执行命令 (需要 Guest Additions)",
-  parameters: z.object({
-    name: z.string().describe("虚拟机名称"),
-    command: z.string().describe("要执行的命令"),
-    remote_host: z.string().describe("远程主机 IP 或域名"),
-    remote_ssh_port: z.number().default(22).describe("SSH 端口"),
-    remote_username: z.string().describe("远程 SSH 用户名"),
-    auth_type: z.enum(["password", "key"]).default("password").describe("认证方式"),
-    password: z.string().optional().describe("密码"),
-    private_key: z.string().optional().describe("私钥内容"),
-    private_key_path: z.string().optional().describe("私钥文件路径"),
-  }),
-  execute: async (args, _ctx) => {
-    const {
-      name,
-      command,
-      remote_host,
-      remote_ssh_port,
-      remote_username,
-      auth_type,
-      password,
-      private_key,
-      private_key_path,
-    } = args;
-
+  description: "在 VirtualBox 虚拟机中执行命令",
+  parameters: ConnectConfigSchema.extend({ vm_name: z.string().describe("虚拟机名称"), command: z.string().describe("要执行的命令") }),
+  execute: async (args) => {
+    const { name, vm_name, command, remote_host, ssh_port, ssh_username, private_key, private_key_path, password } = args;
+    const config: VirtualBoxRemoteConfig = { name: vm_name, remote_host, ssh_port, ssh_username, private_key, private_key_path, password };
     try {
       const provider = new VirtualBoxRemoteProvider();
-
-      // 先连接
-      await provider.create({
-        name: `conn-${name}`,
-        remote_host,
-        remote_ssh_port,
-        remote_username,
-        auth_type,
-        password,
-        private_key,
-        private_key_path,
-        os: "linux",
-      });
-
-      // 执行命令
-      const result = await provider.exec(name, command);
-
-      let output = `命令执行完成\n\n`;
-      output += `命令：${command}\n`;
-      output += `退出码：${result.exitCode}\n\n`;
-
-      if (result.stdout) {
-        output += `输出:\n${result.stdout}\n\n`;
-      }
-
-      if (result.stderr) {
-        output += `错误输出:\n${result.stderr}\n\n`;
-      }
-
-      return {
-        title: `远程执行：${command.substring(0, 50)}...`,
-        output,
-        metadata: {
-          exitCode: result.exitCode,
-          stdout: result.stdout,
-          stderr: result.stderr,
-        },
-      };
+      await provider.create(config);
+      const result = await provider.exec(vm_name, command);
+      let output = `命令执行完成\n\n  命令：${command}\n  退出码：${result.exitCode}\n`;
+      if (result.stdout) output += `\n  输出:\n${result.stdout}\n`;
+      if (result.stderr) output += `\n  错误输出:\n${result.stderr}\n`;
+      return { title: `执行命令：${command.substring(0, 50)}...`, output, metadata: { exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr } };
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);
-      return {
-        title: `远程执行失败`,
-        output: `错误：${msg}`,
-        metadata: {} as Record<string, unknown>,
-      };
+      return { title: `执行命令失败`, output: `错误：${msg}`, metadata: { exitCode: -1, stdout: "", stderr: "" } };
     }
   },
 }));
